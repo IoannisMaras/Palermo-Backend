@@ -1,6 +1,7 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
 import uuid
+from .utils import *
 
 class RoomConsumer(AsyncWebsocketConsumer):
     games = {}  # This will store the game state for all games
@@ -42,7 +43,10 @@ class RoomConsumer(AsyncWebsocketConsumer):
         # Add player to the room
         RoomConsumer.games[self.room_uuid]['players'].append({
             'channel_name': self.channel_name,
-            'username' : self.username
+            'username' : self.username,
+            'role': None,
+            'is_alive': True,
+            'vote': None
         })
        
         await self.channel_layer.group_add(
@@ -131,8 +135,81 @@ class RoomConsumer(AsyncWebsocketConsumer):
         
         self.games[self.room_uuid]['state'] = "playing"
         
+        #asign roles to all players
+        self.games[self.room_uuid]['players'] = assign_roles(self.games[self.room_uuid]['players'])
+        
         # Notify all connected clients that the game has started
         await self.send(text_data=json.dumps({
             'type' : 'game_state_change',
-            'state' : self.games[self.room_uuid]['state']
+            'state' : self.games[self.room_uuid]['state'],
+            'all_players' : self.games[self.room_uuid]['players']
+        }))
+        
+    async def reset_game(self, event):
+        if(event['channel_name'] != self.games[self.room_uuid]['players'][0]['channel_name']):
+            # Only the first player can start the game
+            return
+        
+        self.games[self.room_uuid]['state'] = "lobby"
+        
+        for player in self.games[self.room_uuid]['players']:
+            player['role'] = None
+            player['is_alive'] = True
+            player['vote'] = None
+        
+        # Notify all connected clients that the game has been reset
+        await self.send(text_data=json.dumps({
+            'type' : 'game_state_change',
+            'state' : self.games[self.room_uuid]['state'],
+            'all_players' : self.games[self.room_uuid]['players']
+        }))
+    
+    async def start_voting(self, event):
+        if(event['channel_name'] != self.games[self.room_uuid]['players'][0]['channel_name']):
+            # Only the first player can start the game
+            return
+        
+        self.games[self.room_uuid]['state'] = "voting"
+        
+        # Notify all connected clients that voting has started
+        await self.send(text_data=json.dumps({
+            'type' : 'game_state_change',
+            'state' : self.games[self.room_uuid]['state'],
+            'all_players' : self.games[self.room_uuid]['players']
+        }))
+        
+    async def end_voting(self, event):
+        if(event['channel_name'] != self.games[self.room_uuid]['players'][0]['channel_name']):
+            # Only the first player can start the game
+            return
+        
+        self.games[self.room_uuid]['state'] = "playing"
+        
+        most_voted_index = decide_the_voted(self.games[self.room_uuid]['players'])
+        
+        new_state , player_out , next_state_message = get_next_state(self.games[self.room_uuid]['players'],most_voted_index)
+                        
+        for player in self.games[self.room_uuid]['players']:
+            player['vote'] = None
+        
+        # Notify all connected clients that voting has ended
+        await self.send(text_data=json.dumps({
+            'type' : 'game_state_change',
+            'state' : new_state,
+            'all_players' : self.games[self.room_uuid]['players'],
+            'player_out' : player_out,
+            'message' : next_state_message
+        }))
+        
+    async def vote_player(self,event):
+        # Find the player who is being voted
+        for player in self.games[self.room_uuid]['players']:
+            if player['channel_name'] == self.channel_name:
+                player['vote'] = event['vote']
+                break
+        
+        # Notify all connected clients that a player has voted
+        await self.send(text_data=json.dumps({
+            'type' : 'player_change',
+            'all_players' : self.games[self.room_uuid]['players']
         }))
