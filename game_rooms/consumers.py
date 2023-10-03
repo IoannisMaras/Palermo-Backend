@@ -133,7 +133,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
             # Only the first player can start the game
             return
         
-        self.games[self.room_uuid]['state'] = "playing"
+        self.games[self.room_uuid]['state'] = "Day"
         
         #asign roles to all players
         self.games[self.room_uuid]['players'] = assign_roles(self.games[self.room_uuid]['players'])
@@ -183,11 +183,10 @@ class RoomConsumer(AsyncWebsocketConsumer):
             # Only the first player can start the game
             return
         
-        self.games[self.room_uuid]['state'] = "playing"
         
         most_voted_index = decide_the_voted(self.games[self.room_uuid]['players'])
         
-        new_state , player_out , next_state_message = get_next_state(self.games[self.room_uuid]['players'],most_voted_index)
+        new_state , player_out , next_state_message = get_next_state(self.games[self.room_uuid]['state'],self.games[self.room_uuid]['players'],most_voted_index)
                         
         for player in self.games[self.room_uuid]['players']:
             player['vote'] = None

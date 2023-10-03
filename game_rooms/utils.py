@@ -57,7 +57,7 @@ def decide_the_voted(players):
     
     return voted_index.index(max(voted_index))
 
-def get_next_state(players,most_voted_index):
+def get_next_state(previous_state,players,most_voted_index):
     
     player_to_kill = players[most_voted_index]
     
