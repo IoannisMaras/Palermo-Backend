@@ -25,6 +25,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
             RoomConsumer.games[self.room_uuid] = {
                 'state':"lobby",
                 'players': [],
+                'story_teller':None
                 
                 # ... other game state variables
             }   
@@ -183,11 +184,10 @@ class RoomConsumer(AsyncWebsocketConsumer):
             # Only the first player can start the game
             return
         
-        
         most_voted_index = decide_the_voted(self.games[self.room_uuid]['players'])
         
         new_state , player_out , next_state_message = get_next_state(self.games[self.room_uuid]['state'],self.games[self.room_uuid]['players'],most_voted_index)
-                        
+          
         for player in self.games[self.room_uuid]['players']:
             player['vote'] = None
         
@@ -201,10 +201,15 @@ class RoomConsumer(AsyncWebsocketConsumer):
         }))
         
     async def vote_player(self,event):
+        
+        #skip if state is not voting
+        if(self.games[self.room_uuid]['state'] != "voting"):
+            return
+        
         # Find the player who is being voted
         for player in self.games[self.room_uuid]['players']:
-            if player['channel_name'] == self.channel_name:
-                player['vote'] = event['vote']
+            if player['channel_name'] == event['channel_name']:
+                player['vote'] = event['message']['vote']
                 break
         
         # Notify all connected clients that a player has voted
