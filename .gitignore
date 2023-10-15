@@ -1,3 +1,9 @@
 *.log
 *.pot
 *.pyc
+.history
+my_env
+__pycache__*
+*.env
+warning.log
+.vscode
