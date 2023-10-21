@@ -1,37 +1,45 @@
 import random
 
-def weighted_random_choices(choices, k):
-    total = sum(weight for choice, weight in choices.items())
-    results = []
-    for _ in range(k):
-        r = random.uniform(0, total)
-        upto = 0
-        for choice, weight in choices.items():
-            if upto + weight >= r:
-                results.append(choice)
-                break
-            upto += weight
-    return results
+def weighted_random_choices(weighted_options, count):
+    options, weights = zip(*weighted_options.items())
+    return random.choices(options, weights, k=count)
 
 def assign_roles(players):
     # Mandatory roles that should always be included
-    mandatory_roles = ['Mafia','Detective']
+    mandatory_roles = ['Mafia','Mafia','Detective']
 
     # Optional roles with assigned weights (chances)
     optional_roles = {
-        'Citizen': 5,
-        'Jester': 2,
+        'Citizen': 10,
+        'Jester': 1,
+        'Pimp': 2
     }
 
+    # Counter to keep track of assigned roles
+    assigned_roles_counter = {}
+
     # Check if there are enough players for mandatory roles
-    if len(players) < len(mandatory_roles):
+    if len(players) < (len(mandatory_roles) + 1):
         raise ValueError('Not enough players for mandatory roles')
 
     # Calculate remaining player count after assigning mandatory roles
     remaining_players = len(players) - len(mandatory_roles)
-    
-    # Get weighted optional roles for remaining players
-    optional_roles_chosen = weighted_random_choices(optional_roles, remaining_players)
+
+    # Initialize list to store optional roles chosen
+    optional_roles_chosen = []
+
+    for _ in range(remaining_players):
+        # Get a weighted random choice based on current optional_roles
+        choice = weighted_random_choices(optional_roles, 1)[0]
+
+        # Update counter
+        assigned_roles_counter[choice] = assigned_roles_counter.get(choice, 0) + 1
+
+        # Remove optional role if it's not 'Citizen' and already assigned once
+        if choice != 'Citizen' and assigned_roles_counter[choice] >= 1:
+            del optional_roles[choice]
+
+        optional_roles_chosen.append(choice)
 
     # Combine mandatory and optional roles and shuffle
     all_roles = mandatory_roles + optional_roles_chosen

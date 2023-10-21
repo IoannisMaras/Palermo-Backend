@@ -95,7 +95,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
     # Receive message from WebSocket
     async def receive(self, text_data):
         data = json.loads(text_data)
-
+        print(data)
         # Broadcast message to room group
         await self.channel_layer.group_send(
             self.room_group_name,
