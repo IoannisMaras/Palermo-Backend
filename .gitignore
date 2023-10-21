@@ -2,7 +2,7 @@
 *.pot
 *.pyc
 .history
-my_env
+djangoenv
 __pycache__*
 *.env
 warning.log
