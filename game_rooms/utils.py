@@ -72,5 +72,5 @@ def get_next_state(previous_state,players,most_voted_index):
         
     
     
-    return "Night" , None , 'Test'
+    return "Night" , most_voted_index , {'title': 'Night', 'message': 'Mafia has chosen a player to kill.'}
     

@@ -26,7 +26,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 'state':"lobby",
                 'players': [],
                 'story_teller':None,
-                'story_state':None,
                 
                 # ... other game state variables
             }   
@@ -187,7 +186,13 @@ class RoomConsumer(AsyncWebsocketConsumer):
         
         most_voted_index = decide_the_voted(self.games[self.room_uuid]['players'])
         
-        new_state , player_out , next_state_message = get_next_state(self.games[self.room_uuid]['state'],self.games[self.room_uuid]['players'],most_voted_index)
+        new_state , player_out_index , next_state_message = get_next_state(self.games[self.room_uuid]['state'],self.games[self.room_uuid]['players'],most_voted_index)
+
+        if(player_out_index != None):
+            self.games[self.room_uuid]['players'][player_out_index]['is_alive'] = False
+            #first player to die becomes the story teller
+            if(self.games[self.room_uuid]['story_teller'] == None):
+                self.games[self.room_uuid]['story_teller'] = player_out_index
           
         for player in self.games[self.room_uuid]['players']:
             player['vote'] = None
@@ -197,7 +202,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
             'type' : 'game_state_change',
             'state' : new_state,
             'all_players' : self.games[self.room_uuid]['players'],
-            'player_out' : player_out,
+            'player_out' : player_out_index,
             'message' : next_state_message
         }))
         
