@@ -206,6 +206,18 @@ class RoomConsumer(AsyncWebsocketConsumer):
             'message' : next_state_message
         }))
         
+    async def end_night(self, event):
+
+        new_state , player_out_index , next_state_message = get_next_state(self.games[self.room_uuid]['state'],self.games[self.room_uuid]['players'],None)
+
+        await self.send(text_data=json.dumps({
+            'type' : 'game_state_change',
+            'state' : new_state,
+            'all_players' : self.games[self.room_uuid]['players'],
+            'player_out' : player_out_index,
+            'message' : next_state_message
+        }))
+
     async def vote_player(self,event):
         
         #skip if state is not voting
@@ -217,6 +229,21 @@ class RoomConsumer(AsyncWebsocketConsumer):
             if player['channel_name'] == event['channel_name']:
                 player['vote'] = event['message']
                 break
+        
+        # Notify all connected clients that a player has voted
+        await self.send(text_data=json.dumps({
+            'type' : 'player_change',
+            'all_players' : self.games[self.room_uuid]['players']
+        }))
+
+    async def mafia_kill(self,event):
+
+        #skip if state is not voting
+        if(self.games[self.room_uuid]['state'] != "Night"):
+            return
+        
+        # Find the player who is being voted
+        self.games[self.room_uuid]['players'][event['message']]['is_alive'] = False
         
         # Notify all connected clients that a player has voted
         await self.send(text_data=json.dumps({
