@@ -26,6 +26,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 'state':"lobby",
                 'players': [],
                 'story_teller':None,
+                'last_message':None,
                 
                 # ... other game state variables
             }   
@@ -105,6 +106,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 'channel_name': self.channel_name,
             }
         )
+        self.games[self.room_uuid]['last_message'] = None
 
     # Receive message from room group
     async def chat_message(self, event):
@@ -134,21 +136,36 @@ class RoomConsumer(AsyncWebsocketConsumer):
             # Only the first player can start the game
             return
         
+        if(self.games[self.room_uuid]['last_message'] != None):
+            await self.send(text_data=json.dumps(
+                self.games[self.room_uuid]['last_message']
+            ))
+            return
+        
         self.games[self.room_uuid]['state'] = "Day"
         
         #asign roles to all players
         self.games[self.room_uuid]['players'] = assign_roles(self.games[self.room_uuid]['players'])
         
-        # Notify all connected clients that the game has started
-        await self.send(text_data=json.dumps({
+        self.games[self.room_uuid]['last_message'] = {
             'type' : 'game_state_change',
             'state' : self.games[self.room_uuid]['state'],
-            'all_players' : self.games[self.room_uuid]['players']
-        }))
+            'all_players' : self.games[self.room_uuid]['players'],
+            'story_teller' : self.games[self.room_uuid]['story_teller']
+        }
+
+        # Notify all connected clients that the game has started
+        await self.send(text_data=json.dumps(self.games[self.room_uuid]['last_message']))
         
     async def reset_game(self, event):
         if(event['channel_name'] != self.games[self.room_uuid]['players'][0]['channel_name']):
             # Only the first player can start the game
+            return
+        
+        if(self.games[self.room_uuid]['last_message'] != None):
+            await self.send(text_data=json.dumps(
+                self.games[self.room_uuid]['last_message']
+            ))
             return
         
         self.games[self.room_uuid]['state'] = "lobby"
@@ -162,7 +179,8 @@ class RoomConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'type' : 'game_state_change',
             'state' : self.games[self.room_uuid]['state'],
-            'all_players' : self.games[self.room_uuid]['players']
+            'all_players' : self.games[self.room_uuid]['players'],
+            'story_teller' : self.games[self.room_uuid]['story_teller']
         }))
     
     async def start_voting(self, event):
@@ -170,18 +188,39 @@ class RoomConsumer(AsyncWebsocketConsumer):
             # Only the first player can start the game
             return
         
+        if(self.games[self.room_uuid]['last_message'] != None):
+            await self.send(text_data=json.dumps(
+                self.games[self.room_uuid]['last_message']
+            ))
+            return
+        
         self.games[self.room_uuid]['state'] = "voting"
         
-        # Notify all connected clients that voting has started
-        await self.send(text_data=json.dumps({
+        #set last message
+        self.games[self.room_uuid]['last_message'] = {
             'type' : 'game_state_change',
             'state' : self.games[self.room_uuid]['state'],
-            'all_players' : self.games[self.room_uuid]['players']
-        }))
+            'all_players' : self.games[self.room_uuid]['players'],
+            'story_teller' : self.games[self.room_uuid]['story_teller']
+        }
+        # Notify all connected clients that voting has started
+        await self.send(text_data=json.dumps(self.games[self.room_uuid]['last_message']))
         
     async def end_voting(self, event):
-        if(event['channel_name'] != self.games[self.room_uuid]['players'][0]['channel_name']):
-            # Only the first player can start the game
+
+        if(self.games[self.room_uuid]['story_teller'] == None):
+            if(event['channel_name'] != self.games[self.room_uuid]['players'][0]['channel_name']):
+                return
+            else:
+                pass
+        elif(event['channel_name'] != self.games[self.room_uuid]['players'][self.games[self.room_uuid]['story_teller']]['channel_name']):
+            # Only the story teller can end the voting
+            return
+        
+        if(self.games[self.room_uuid]['last_message'] != None):
+            await self.send(text_data=json.dumps(
+                self.games[self.room_uuid]['last_message']
+            ))
             return
         
         most_voted_index = decide_the_voted(self.games[self.room_uuid]['players'])
@@ -197,14 +236,19 @@ class RoomConsumer(AsyncWebsocketConsumer):
         for player in self.games[self.room_uuid]['players']:
             player['vote'] = None
         
-        # Notify all connected clients that voting has ended
-        await self.send(text_data=json.dumps({
+        self.games[self.room_uuid]['state'] = new_state
+
+        self.games[self.room_uuid]['last_message'] = {
             'type' : 'game_state_change',
             'state' : new_state,
             'all_players' : self.games[self.room_uuid]['players'],
             'player_out' : player_out_index,
-            'message' : next_state_message
-        }))
+            'message' : next_state_message,
+            'story_teller' : self.games[self.room_uuid]['story_teller']
+             }
+
+        # Notify all connected clients that voting has ended
+        await self.send(text_data=json.dumps(self.games[self.room_uuid]['last_message']))
         
     async def end_night(self, event):
 
@@ -220,7 +264,8 @@ class RoomConsumer(AsyncWebsocketConsumer):
             'state' : new_state,
             'all_players' : self.games[self.room_uuid]['players'],
             'player_out' : player_out_index,
-            'message' : next_state_message
+            'message' : next_state_message,
+            'story_teller' : self.games[self.room_uuid]['story_teller']
         }))
 
     async def vote_player(self,event):
@@ -229,14 +274,23 @@ class RoomConsumer(AsyncWebsocketConsumer):
         if(self.games[self.room_uuid]['state'] != "Day"):
             return
         
+        if(self.games[self.room_uuid]['last_message'] != None):
+            await self.send(text_data=json.dumps(
+                self.games[self.room_uuid]['last_message']
+            ))
+            return
+        
         # Find the player who is being voted
         for player in self.games[self.room_uuid]['players']:
             if player['channel_name'] == event['channel_name']:
                 player['vote'] = event['message']
                 break
         
-        # Notify all connected clients that a player has voted
-        await self.send(text_data=json.dumps({
+        #add last message
+        self.games[self.room_uuid]['last_message'] = {
             'type' : 'player_change',
             'all_players' : self.games[self.room_uuid]['players']
-        }))
+        }
+
+        # Notify all connected clients that a player has voted
+        await self.send(text_data=json.dumps(self.games[self.room_uuid]['last_message']))

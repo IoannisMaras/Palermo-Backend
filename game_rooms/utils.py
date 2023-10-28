@@ -47,6 +47,7 @@ def assign_roles(players):
 
     # Assign roles to players
     for i, role in enumerate(all_roles):
+        print(players[i]['username'], role)
         players[i]['role'] = role
 
     return players
@@ -62,7 +63,7 @@ def decide_the_voted(players):
     #check if two or more players have the same number of votes
     if voted_index.count(max(voted_index)) > 1:
         return None
-    
+
     return voted_index.index(max(voted_index))
 
 def get_next_state(previous_state,players,most_voted_index):
