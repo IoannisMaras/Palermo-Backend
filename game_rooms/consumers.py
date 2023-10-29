@@ -223,6 +223,9 @@ class RoomConsumer(AsyncWebsocketConsumer):
             ))
             return
         
+        if(self.games[self.room_uuid]['state'] != "Day"):
+            return
+        
         most_voted_index = decide_the_voted(self.games[self.room_uuid]['players'])
         
         new_state , player_out_index , next_state_message = get_next_state(self.games[self.room_uuid]['state'],self.games[self.room_uuid]['players'],most_voted_index)
@@ -252,6 +255,22 @@ class RoomConsumer(AsyncWebsocketConsumer):
         
     async def end_night(self, event):
 
+
+        if(self.games[self.room_uuid]['story_teller'] == None):
+            if(event['channel_name'] != self.games[self.room_uuid]['players'][0]['channel_name']):
+                return
+            else:
+                pass
+        elif(event['channel_name'] != self.games[self.room_uuid]['players'][self.games[self.room_uuid]['story_teller']]['channel_name']):
+            # Only the story teller can end the voting
+            return
+        
+        if(self.games[self.room_uuid]['last_message'] != None):
+            await self.send(text_data=json.dumps(
+                self.games[self.room_uuid]['last_message']
+            ))
+            return
+        
         if(self.games[self.room_uuid]['state'] != "Night"):
             return
         
@@ -259,14 +278,17 @@ class RoomConsumer(AsyncWebsocketConsumer):
     
         new_state , player_out_index , next_state_message = get_next_state(self.games[self.room_uuid]['state'],self.games[self.room_uuid]['players'],night_kill_index)
 
-        await self.send(text_data=json.dumps({
+        self.games[self.room_uuid]['last_message'] = {
             'type' : 'game_state_change',
             'state' : new_state,
             'all_players' : self.games[self.room_uuid]['players'],
             'player_out' : player_out_index,
             'message' : next_state_message,
             'story_teller' : self.games[self.room_uuid]['story_teller']
-        }))
+             }
+
+        # Notify all connected clients that voting has ended
+        await self.send(text_data=json.dumps(self.games[self.room_uuid]['last_message']))
 
     async def vote_player(self,event):
         
